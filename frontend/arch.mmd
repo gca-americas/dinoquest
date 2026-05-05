@@ -1,0 +1,29 @@
+graph TD
+    classDef frontend fill:#3498db,stroke:#2980b9,stroke-width:2px,color:white;
+    classDef firebase fill:#f39c12,stroke:#d68910,stroke-width:2px,color:white;
+    classDef genai fill:#8e44ad,stroke:#71368a,stroke-width:2px,color:white;
+    
+    subgraph Client ["Client Interface (Vite + React)"]
+        UI[React UI Components]:::frontend
+        AI_SVC[Gemini Service]:::frontend
+        FB_SVC[Firebase Service]:::frontend
+    end
+
+    subgraph Firebase ["Firebase Backend (BaaS)"]
+        Auth[Firebase Authentication]:::firebase
+        DB[(Cloud Firestore)]:::firebase
+    end
+
+    subgraph GoogleGenAI ["Google Gemini"]
+        GeminiFlash[Gemini 3 Flash]:::genai
+        GeminiImage[Gemini 2.5 Image]:::genai
+    end
+
+    UI <--> FB_SVC
+    UI <--> AI_SVC
+
+    FB_SVC -->|Authenticates User| Auth
+    FB_SVC -->|Reads/Writes User Dinos| DB
+    
+    AI_SVC -->|1. Prompts for Dino Stats| GeminiFlash
+    AI_SVC -->|2. Prompts for Character Art| GeminiImage

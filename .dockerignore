@@ -1,0 +1,13 @@
+# Dependency directories
+node_modules/
+backend/venv/
+backend/__pycache__/
+frontend/dist/
+
+# Env files
+# backend/.env 
+# (Note: backend/.env is typically ignored, but since you are passing API keys via environment variables, 
+# it's best practice to completely exclude it from being baked into the Docker image!)
+
+.git/
+.gitignore

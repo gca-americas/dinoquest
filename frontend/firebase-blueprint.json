@@ -1,0 +1,69 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user information and their high scores.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "description": "User email" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "highScore": { "type": "number", "description": "Highest score achieved in the runner game" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Dinosaur": {
+      "title": "Dinosaur Avatar",
+      "description": "Stores the generated dinosaur avatar details.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the owner" },
+        "name": { "type": "string", "description": "Dinosaur name" },
+        "habitat": { "type": "string", "description": "Habitat (e.g., Forest, Desert, Swamp)" },
+        "diet": { "type": "string", "description": "Diet (e.g., Herbivore, Carnivore)" },
+        "colors": { "type": "array", "items": { "type": "string" }, "description": "User's color preferences" },
+        "imageUrl": { "type": "string", "description": "AI generated image URL (base64 or storage link)" },
+        "type": { "type": "string", "enum": ["Speedy", "Tank", "Balanced", "Agile"], "description": "Dinosaur class affecting gameplay" },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "speed": { "type": "number" },
+            "health": { "type": "number" },
+            "jump": { "type": "number" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "type"]
+    },
+    "GameSession": {
+      "title": "Game Session",
+      "description": "Stores individual game results.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the player" },
+        "dinosaurId": { "type": "string", "description": "ID of the dinosaur used" },
+        "score": { "type": "number", "description": "Score achieved" },
+        "coinsCollected": { "type": "number" },
+        "duration": { "type": "number", "description": "Game duration in seconds" },
+        "playedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "score"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile document"
+    },
+    "/users/{userId}/dinosaurs/{dinoId}": {
+      "schema": "Dinosaur",
+      "description": "User's collection of generated dinosaurs"
+    },
+    "/users/{userId}/games/{gameId}": {
+      "schema": "GameSession",
+      "description": "User's game history"
+    }
+  }
+}
