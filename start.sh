@@ -18,8 +18,5 @@ echo "=========================================="
 echo "🐍 2) Booting Unified Python Gateway..."
 echo "=========================================="
 cd backend
-#python3 -m venv venv
-source venv/bin/activate
-#pip install -r requirements.txt -q
 # Start the FastAPI backend server completely independently in the FOREGROUND carrying the full weight of the application
 python3 main.py
