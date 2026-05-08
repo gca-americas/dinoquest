@@ -16,16 +16,19 @@ from firebase_admin import credentials, firestore, auth as fb_auth
 # Load sensitive environment variables securely
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
-ADMIN_EMAILS = [email.strip() for email in os.getenv("ADMIN_EMAILS", "").split(",") if email.strip()]
+ADMIN_EMAILS = [
+    email.strip() for email in os.getenv("ADMIN_EMAILS", "").split(",") if email.strip()
+]
 LEADERBOARD_ENABLED = os.getenv("LEADERBOARD_ENABLED", "false").lower() == "true"
 VALID_HABITATS = {"Forest", "Desert", "Swamp", "Ocean Edge"}
 VALID_DIETS = {"Herbivore (Plants)", "Carnivore (Meat)"}
 
 
 def sanitize_preferences(text: str) -> str:
-    sanitized = re.sub(r'[{}\[\]<>]', '', text)
-    sanitized = re.sub(r'[\r\n]+', ' ', sanitized)
+    sanitized = re.sub(r"[{}\[\]<>]", "", text)
+    sanitized = re.sub(r"[\r\n]+", " ", sanitized)
     return sanitized[:200].strip()
+
 
 if not api_key:
     raise ValueError("GEMINI_API_KEY is not set in backend/.env!")
@@ -37,7 +40,14 @@ db = firestore.client()
 # Configure Google Gemini AI securely on the backend using the new genai SDK
 client = genai.Client(
     api_key=api_key,
-    http_options=types.HttpOptions(timeout=55000),
+    http_options=types.HttpOptions(
+        retry_options=types.HttpRetryOptions(
+            initial_delay=1.0,
+            attempts=5,
+            http_status_codes=[408, 429, 500, 502, 503, 504],
+        ),
+        timeout=120 * 1000,
+    ),
 )
 
 # Initialize FastAPI application
@@ -71,18 +81,18 @@ class GenerationRequest(BaseModel):
     preferences: str
     userId: Optional[str] = None
 
-    @field_validator('preferences')
+    @field_validator("preferences")
     @classmethod
     def preferences_length(cls, v):
         if len(v) > 500:
-            raise ValueError('preferences too long')
+            raise ValueError("preferences too long")
         return v
 
-    @field_validator('userId')
+    @field_validator("userId")
     @classmethod
     def user_id_format(cls, v):
         if v and len(v) > 128:
-            raise ValueError('userId too long')
+            raise ValueError("userId too long")
         return v
 
 
@@ -102,25 +112,25 @@ class GameEndLog(BaseModel):
     won: bool
     speed: float
 
-    @field_validator('score')
+    @field_validator("score")
     @classmethod
     def score_range(cls, v):
         if not (0 <= v <= 10000):
-            raise ValueError('score out of range')
+            raise ValueError("score out of range")
         return v
 
-    @field_validator('coins')
+    @field_validator("coins")
     @classmethod
     def coins_range(cls, v):
         if not (0 <= v <= 100):
-            raise ValueError('coins out of range')
+            raise ValueError("coins out of range")
         return v
 
-    @field_validator('dino_type')
+    @field_validator("dino_type")
     @classmethod
     def valid_dino_type(cls, v):
-        if v not in {'Speedy', 'Tank', 'Balanced', 'Agile'}:
-            raise ValueError('invalid dino_type')
+        if v not in {"Speedy", "Tank", "Balanced", "Agile"}:
+            raise ValueError("invalid dino_type")
         return v
 
 
@@ -128,11 +138,13 @@ class Level2UnlockLog(BaseModel):
     userId: Optional[str] = None
     dino_id: str
 
+
 class Level2StartLog(BaseModel):
     userId: Optional[str] = None
     dino_id: str
     dino_type: str
     dino_name: Optional[str] = None
+
 
 class Level2EndLog(BaseModel):
     userId: Optional[str] = None
@@ -339,7 +351,7 @@ async def log_level2_end(log_data: Level2EndLog):
                 "score": log_data.score,
                 "rocks_destroyed": log_data.rocks_destroyed,
                 "time_survived": log_data.time_survived,
-                "won": log_data.won
+                "won": log_data.won,
             }
         ),
         flush=True,
@@ -364,10 +376,8 @@ async def get_leaderboard_status(authorization: str = Header(None)):
         except Exception:
             pass
 
-    return {
-        "enabled": LEADERBOARD_ENABLED,
-        "isAdmin": is_admin
-    }
+    return {"enabled": LEADERBOARD_ENABLED, "isAdmin": is_admin}
+
 
 @app.get("/api/leaderboard")
 async def get_leaderboard(authorization: str = Header(None)):
@@ -394,11 +404,14 @@ async def get_leaderboard(authorization: str = Header(None)):
     leaderboard = []
     for doc in docs:
         data = doc.to_dict()
-        leaderboard.append({
-            "userId": data.get("uid", doc.id),
-            "displayName": data.get("displayName") or data.get("email", "Anonymous"),
-            "total_score": data.get("highScore", 0),
-        })
+        leaderboard.append(
+            {
+                "userId": data.get("uid", doc.id),
+                "displayName": data.get("displayName")
+                or data.get("email", "Anonymous"),
+                "total_score": data.get("highScore", 0),
+            }
+        )
 
     return {"status": "success", "leaderboard": leaderboard}
 

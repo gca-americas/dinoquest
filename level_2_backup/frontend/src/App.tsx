@@ -343,12 +343,12 @@ export default function App() {
     <div className="min-h-screen bg-[#fdfcf0] text-gray-900 font-sans selection:bg-yellow-200">
       {/* Header */}
       <header className="p-4 flex justify-between items-center max-w-6xl mx-auto">
-        <div className="flex items-center gap-2">
+        <a href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center text-white shadow-lg rotate-3">
             <Sparkles size={24} />
           </div>
           <h1 className="text-2xl font-black tracking-tighter text-green-800 uppercase italic">DinoQuest</h1>
-        </div>
+        </a>
         {user && (
           <div className="flex items-center gap-2 sm:gap-4">
             <button

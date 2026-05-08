@@ -30,10 +30,16 @@ api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     raise ValueError("GEMINI_API_KEY is not set in backend/.env!")
 
-# Configure Google Gemini AI securely on the backend using the new genai SDK
 client = genai.Client(
     api_key=api_key,
-    http_options=types.HttpOptions(timeout=55000),
+    http_options=types.HttpOptions(
+        retry_options=types.HttpRetryOptions(
+            initial_delay=1.0,
+            attempts=5,
+            http_status_codes=[408, 429, 500, 502, 503, 504],
+        ),
+        timeout=120 * 1000,
+    ),
 )
 
 # Initialize FastAPI application

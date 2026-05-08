@@ -15,7 +15,9 @@ from firebase_admin import credentials, firestore, auth as fb_auth
 # Load sensitive environment variables securely
 load_dotenv()
 
-ADMIN_EMAILS = [email.strip() for email in os.getenv("ADMIN_EMAILS", "").split(",") if email.strip()]
+ADMIN_EMAILS = [
+    email.strip() for email in os.getenv("ADMIN_EMAILS", "").split(",") if email.strip()
+]
 LEADERBOARD_ENABLED = os.getenv("LEADERBOARD_ENABLED", "false").lower() == "true"
 
 # Load sensitive environment variables securely
@@ -33,7 +35,14 @@ if not api_key:
 # Configure Google Gemini AI securely on the backend using the new genai SDK
 client = genai.Client(
     api_key=api_key,
-    http_options=types.HttpOptions(timeout=55000),
+    http_options=types.HttpOptions(
+        retry_options=types.HttpRetryOptions(
+            initial_delay=1.0,
+            attempts=5,
+            http_status_codes=[408, 429, 500, 502, 503, 504],
+        ),
+        timeout=120 * 1000,
+    ),
 )
 
 # Initialize FastAPI application
@@ -241,11 +250,9 @@ async def get_leaderboard_status(authorization: str = Header(None)):
                 is_admin = True
         except Exception:
             pass
-            
-    return {
-        "enabled": LEADERBOARD_ENABLED,
-        "isAdmin": is_admin
-    }
+
+    return {"enabled": LEADERBOARD_ENABLED, "isAdmin": is_admin}
+
 
 @app.get("/api/leaderboard")
 async def get_leaderboard(authorization: str = Header(None)):
@@ -272,11 +279,14 @@ async def get_leaderboard(authorization: str = Header(None)):
     leaderboard = []
     for doc in docs:
         data = doc.to_dict()
-        leaderboard.append({
-            "userId": data.get("uid", doc.id),
-            "displayName": data.get("displayName") or data.get("email", "Anonymous"),
-            "total_score": data.get("highScore", 0),
-        })
+        leaderboard.append(
+            {
+                "userId": data.get("uid", doc.id),
+                "displayName": data.get("displayName")
+                or data.get("email", "Anonymous"),
+                "total_score": data.get("highScore", 0),
+            }
+        )
 
     return {"status": "success", "leaderboard": leaderboard}
 
