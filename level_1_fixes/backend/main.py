@@ -272,7 +272,7 @@ async def get_leaderboard(authorization: str = Header(None)):
     docs = (
         db.collection("users")
         .order_by("highScore", direction=firestore.Query.DESCENDING)
-        .limit(100)
+        .limit(10)
         .stream()
     )
 
