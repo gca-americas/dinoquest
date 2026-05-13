@@ -1,20 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { auth, signIn, signOut, db, handleFirestoreError, OperationType } from './firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth, signIn, signInWithGoogle, signOut, db, handleFirestoreError, OperationType } from './firebase';
+import { onAuthStateChanged, User, updateProfile } from 'firebase/auth';
 import { collection, addDoc, setDoc, doc, getDoc, getDocs, query, orderBy, limit, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
-import { LogIn, LogOut, Play, Sparkles, Trophy, History, RefreshCw, Info } from 'lucide-react';
+import { LogIn, LogOut, Play, Sparkles, Trophy, History, RefreshCw, Info, ShieldCheck } from 'lucide-react';
 import { generateDinoPayload, compressImage, DinoGenerationResult } from './services/geminiService';
 import { RunnerGame } from './components/RunnerGame';
 import { DinoCard } from './components/DinoCard';
 import { AnnouncementPopup } from './components/AnnouncementPopup';
+import { generateFunnyName } from './utils/nameGenerator';
 
-type AppState = 'AUTH' | 'QUESTIONS' | 'GENERATING' | 'CARD_PREVIEW' | 'GAME' | 'RESULTS' | 'HISTORY' | 'COLLECTION' | 'LEADERBOARD';
+type AppState = 'AUTH' | 'QUESTIONS' | 'GENERATING' | 'CARD_PREVIEW' | 'GAME' | 'RESULTS' | 'HISTORY' | 'COLLECTION' | 'LEADERBOARD' | 'ADMIN';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [appState, setAppState] = useState<AppState>('AUTH');
   const [loading, setLoading] = useState(true);
+  const isAdminPath = window.location.pathname === '/admin';
 
   // Creation state
   const [habitat, setHabitat] = useState('');
@@ -48,23 +50,31 @@ export default function App() {
   }, [appState, lastScore.won]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       setLoading(false);
       if (u) {
-        setAppState('QUESTIONS');
-        syncUser(u);
+        if (isAdminPath) {
+          setAppState('ADMIN');
+        } else {
+          setAppState('QUESTIONS');
+        }
+        await syncUser(u);
         fetchHistory(u.uid);
         fetchDinos(u.uid);
         fetchAnnouncement(u.uid);
       } else {
-        setAppState('AUTH');
+        if (isAdminPath) {
+          setAppState('ADMIN');
+        } else {
+          setAppState('AUTH');
+        }
         setLeaderboardStatus({ enabled: false, isAdmin: false });
       }
     });
 
     return unsubscribe;
-  }, []);
+  }, [isAdminPath]);
 
   useEffect(() => {
     if (user) {
@@ -84,11 +94,22 @@ export default function App() {
     const userRef = doc(db, 'users', u.uid);
     try {
       const snap = await getDoc(userRef);
+      let displayName = u.displayName;
+
+      if (!displayName) {
+        displayName = generateFunnyName();
+        try {
+          await updateProfile(u, { displayName });
+        } catch (e) {
+          console.error("Failed to update profile name:", e);
+        }
+      }
+
       if (!snap.exists()) {
         await setDoc(userRef, {
           uid: u.uid,
           email: u.email,
-          displayName: u.displayName,
+          displayName: displayName,
           highScore: 0,
           createdAt: serverTimestamp(),
         });
@@ -318,7 +339,6 @@ export default function App() {
               </button>
             )}
             <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full shadow-sm border border-gray-100">
-              <img src={user.photoURL || ''} alt="" className="w-6 h-6 rounded-full" />
               <span className="text-xs font-bold hidden sm:block">{user.displayName}</span>
               <button onClick={signOut} className="text-red-500 hover:text-red-700">
                 <LogOut size={16} />
@@ -330,6 +350,64 @@ export default function App() {
 
       <main className="max-w-4xl mx-auto p-6">
         <AnimatePresence mode="wait">
+          {appState === 'ADMIN' && (
+            <motion.div
+              key="admin"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white p-8 rounded-3xl shadow-xl border-2 border-red-100 text-center max-w-lg mx-auto"
+            >
+              <div className="w-20 h-20 bg-red-500 rounded-2xl flex items-center justify-center text-white shadow-lg mx-auto mb-6 rotate-3">
+                <ShieldCheck size={40} />
+              </div>
+              <h2 className="text-3xl font-black text-gray-900 mb-4">Admin Dashboard</h2>
+              <p className="text-gray-600 mb-8 font-medium">
+                Log in with an authorized Google account to view internal tools and global leaderboard.
+              </p>
+              
+              {!user || user.isAnonymous ? (
+                <button
+                  onClick={signInWithGoogle}
+                  className="bg-gray-900 hover:bg-black text-white px-8 py-4 rounded-2xl font-bold text-xl shadow-xl transition-all flex items-center gap-3 mx-auto group"
+                >
+                  <LogIn className="group-hover:translate-x-1 transition-transform" />
+                  Admin Login (Google)
+                </button>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex items-center gap-4 text-left">
+                    <img src={user.photoURL || ''} alt="" className="w-12 h-12 rounded-full border-2 border-white shadow-sm" />
+                    <div>
+                      <div className="font-black text-gray-900">{user.displayName}</div>
+                      <div className="text-sm text-gray-500 font-bold">{user.email}</div>
+                    </div>
+                  </div>
+                  
+                  {leaderboardStatus.isAdmin ? (
+                    <button
+                      onClick={fetchLeaderboard}
+                      className="w-full bg-yellow-500 hover:bg-yellow-600 text-white p-4 rounded-2xl font-black text-xl shadow-lg transition-all flex items-center justify-center gap-3"
+                    >
+                      <Trophy /> View Leaderboard
+                    </button>
+                  ) : (
+                    <div className="bg-orange-50 p-4 rounded-2xl border border-orange-200 text-orange-700 font-bold text-sm">
+                      Access Denied: This account is not in the authorized admin list.
+                    </div>
+                  )}
+                  
+                  <button
+                    onClick={signOut}
+                    className="w-full border-2 border-gray-100 hover:bg-gray-50 text-gray-500 p-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3"
+                  >
+                    <LogOut size={20} /> Sign Out
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          )}
+
           {appState === 'AUTH' && (
             <motion.div
               key="auth"
@@ -652,7 +730,6 @@ export default function App() {
 
       {/* Footer Info */}
       <footer className="py-10 text-center text-gray-400 text-sm font-medium">
-        <p>Another Christina's Project</p>
       </footer>
 
       <AnnouncementPopup announcement={announcement} onDismiss={dismissAnnouncement} />

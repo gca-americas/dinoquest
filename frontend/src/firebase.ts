@@ -21,19 +21,16 @@ async function testConnection() {
 testConnection();
 
 export const signIn = () => {
-  // If the environment explicitly disables Google Auth (for load testing), use Anonymous instead
-  if (import.meta.env.VITE_AUTH_REQUIRE_GOOGLE === 'false') {
-    console.log("🔧 TEST MODE: Bypassing Google OAuth via Anonymous Login");
-    return signInAnonymously(auth).catch((error) => {
-      console.error("Firebase Anonymous Auth Error:", error);
-      throw error;
-    });
-  }
+  return signInAnonymously(auth).catch((error) => {
+    console.error("Firebase Anonymous Auth Error:", error);
+    throw error;
+  });
+};
 
-  // Default Production Behavior (Google Login)
+export const signInWithGoogle = () => {
   return signInWithPopup(auth, googleProvider).catch((error) => {
-    console.error("Firebase Auth Error:", error);
-    alert(`Sign-in failed: ${error.message}\nCode: ${error.code}\n\nThis sometimes happens if popups are blocked or the local port isn't authorized.`);
+    console.error("Firebase Google Auth Error:", error);
+    alert(`Sign-in failed: ${error.message}`);
     throw error;
   });
 };
