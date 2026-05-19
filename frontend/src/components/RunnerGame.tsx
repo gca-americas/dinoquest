@@ -89,6 +89,14 @@ export const RunnerGame: React.FC<RunnerGameProps> = ({ dinoType, dinoImage, din
 
     let animationFrameId: number;
     let frameCount = 0;
+    // Time-based spawn accumulators (seconds). Preserves original cadence:
+    // obstacle 85f, coin 60f, hole 130f w/ +65f offset, cloud 180f, tree 60f — all at 60fps reference.
+    let obsAccum = 0;
+    let coinAccum = 0;
+    let holeAccum = -65 / 60;
+    let cloudAccum = 0;
+    let treeAccum = 0;
+    let scoreAccum = 0;
 
     // Game state (mutable refs for performance and to avoid re-renders during loop)
     const player = {
@@ -261,9 +269,14 @@ export const RunnerGame: React.FC<RunnerGameProps> = ({ dinoType, dinoImage, din
     let flickerTimer = 0;
 
     const gameLoop = (time: number) => {
-      const deltaTime = (time - lastTime) / 1000;
+      // Clamp deltaTime so a backgrounded tab or stalled frame can't teleport entities.
+      const rawDelta = (time - lastTime) / 1000;
+      const deltaTime = Math.min(rawDelta, 1 / 30);
       lastTime = time;
       gameTime -= deltaTime;
+      // dt60: how many "60fps frames" of work this real frame represents.
+      // Multiply every per-frame motion delta by this to make speed wall-clock based.
+      const dt60 = deltaTime * 60;
 
       if (isFlickering) {
         flickerTimer -= deltaTime;
@@ -287,13 +300,15 @@ export const RunnerGame: React.FC<RunnerGameProps> = ({ dinoType, dinoImage, din
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Clouds
-      if (frameCount % 180 === 0) {
+      cloudAccum += deltaTime;
+      if (cloudAccum >= 180 / 60) {
         clouds.push({ x: canvas.width + 50, y: 20 + Math.random() * 80, width: 40 + Math.random() * 50, speed: 0.2 + Math.random() * 0.3 });
+        cloudAccum -= 180 / 60;
       }
       ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
       for (let i = clouds.length - 1; i >= 0; i--) {
         const c = clouds[i];
-        c.x -= c.speed;
+        c.x -= c.speed * dt60;
         ctx.beginPath();
         ctx.arc(c.x, c.y, c.width / 2, 0, Math.PI * 2);
         ctx.arc(c.x + c.width / 3, c.y - c.width / 4, c.width / 2.5, 0, Math.PI * 2);
@@ -303,12 +318,14 @@ export const RunnerGame: React.FC<RunnerGameProps> = ({ dinoType, dinoImage, din
       }
 
       // Parallax Trees
-      if (frameCount % 60 === 0) {
+      treeAccum += deltaTime;
+      if (treeAccum >= 60 / 60) {
         trees.push({ x: canvas.width + 50, y: canvas.height - 40, height: 40 + Math.random() * 60, width: 20 + Math.random() * 20, speed: (stats.speed + 1) * 0.4 });
+        treeAccum -= 60 / 60;
       }
       for (let i = trees.length - 1; i >= 0; i--) {
         const t = trees[i];
-        t.x -= t.speed;
+        t.x -= t.speed * dt60;
         ctx.fillStyle = '#6fac89';
         ctx.beginPath();
         ctx.fillRect(t.x + t.width / 2 - 4, t.y - t.height / 3, 8, t.height / 3);
@@ -328,7 +345,7 @@ export const RunnerGame: React.FC<RunnerGameProps> = ({ dinoType, dinoImage, din
       let overHole = false;
       for (let i = holes.length - 1; i >= 0; i--) {
         const h = holes[i];
-        h.x -= h.speed;
+        h.x -= h.speed * dt60;
 
         ctx.fillRect(h.x, canvas.height - 40, h.width, 40); // Sky color masks ground to look like a gap
 
@@ -341,12 +358,12 @@ export const RunnerGame: React.FC<RunnerGameProps> = ({ dinoType, dinoImage, din
       }
 
       // Player physics
-      player.dy += player.gravity;
-      player.y += player.dy;
+      player.dy += player.gravity * dt60;
+      player.y += player.dy * dt60;
 
       // Safe landing ONLY if player's feet were previously above the ground line.
       if (!overHole) {
-        if (player.y + player.height >= canvas.height - 40 && player.y + player.height - player.dy <= canvas.height - 40) {
+        if (player.y + player.height >= canvas.height - 40 && player.y + player.height - player.dy * dt60 <= canvas.height - 40) {
           player.y = canvas.height - 40 - player.height;
           player.dy = 0;
           player.isGrounded = true;
@@ -394,15 +411,18 @@ export const RunnerGame: React.FC<RunnerGameProps> = ({ dinoType, dinoImage, din
         }
       }
 
-      // Spawn items
-      if (frameCount % 85 === 0) spawnObstacle();
-      if (frameCount % 60 === 0) spawnCoin();
-      if (frameCount % 130 === 65) spawnHole();
+      // Spawn items (time-based so cadence is independent of monitor refresh rate)
+      obsAccum += deltaTime;
+      if (obsAccum >= 85 / 60) { spawnObstacle(); obsAccum -= 85 / 60; }
+      coinAccum += deltaTime;
+      if (coinAccum >= 60 / 60) { spawnCoin(); coinAccum -= 60 / 60; }
+      holeAccum += deltaTime;
+      if (holeAccum >= 130 / 60) { spawnHole(); holeAccum -= 130 / 60; }
 
       // Obstacles
       for (let i = obstacles.length - 1; i >= 0; i--) {
         const obs = obstacles[i];
-        obs.x -= obs.speed;
+        obs.x -= obs.speed * dt60;
 
         // Draw obstacle (Bush)
         ctx.fillStyle = obs.bushColor || '#3CB371';
@@ -447,7 +467,7 @@ export const RunnerGame: React.FC<RunnerGameProps> = ({ dinoType, dinoImage, din
       // Coins
       for (let i = collectables.length - 1; i >= 0; i--) {
         const coin = collectables[i];
-        coin.x -= coin.speed;
+        coin.x -= coin.speed * dt60;
 
         // Draw Treat
         const isHerbivore = dinoDiet?.toLowerCase().includes('herbivore');
@@ -516,9 +536,11 @@ export const RunnerGame: React.FC<RunnerGameProps> = ({ dinoType, dinoImage, din
         if (coin.x + coin.width < 0) collectables.splice(i, 1);
       }
 
-      gameScore += 0.5;
-      if (frameCount % 30 === 0) {
+      gameScore += 0.5 * dt60;
+      scoreAccum += deltaTime;
+      if (scoreAccum >= 30 / 60) {
         setScore(Math.floor(gameScore));
+        scoreAccum -= 30 / 60;
       }
 
       frameCount++;
