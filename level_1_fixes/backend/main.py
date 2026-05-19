@@ -279,16 +279,27 @@ async def get_leaderboard(authorization: str = Header(None)):
     leaderboard = []
     for doc in docs:
         data = doc.to_dict()
+        raw_name = data.get("displayName") or data.get("email", "Anonymous")
         leaderboard.append(
             {
                 "userId": data.get("uid", doc.id),
-                "displayName": data.get("displayName")
-                or data.get("email", "Anonymous"),
+                "displayName": _mask_display_name(raw_name),
                 "total_score": data.get("highScore", 0),
             }
         )
 
     return {"status": "success", "leaderboard": leaderboard}
+
+
+def _mask_display_name(name: str) -> str:
+    if not name:
+        return "Anonymous"
+    parts = name.strip().split()
+    if len(parts) == 1:
+        return parts[0]
+    first, last = parts[0], parts[-1]
+    masked_last = last[0] + "*" * max(len(last) - 1, 1)
+    return f"{first} {masked_last}"
 
 
 # ====================================================================
